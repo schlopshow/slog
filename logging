@@ -1,30 +1,39 @@
 #!/bin/sh
 export PS4='+ $(date "+%Y-%m-%d %H:%M:%S") [$$] '
 
-# Prompt user for input
-echo -n "Enter log location (home/current): "
+# Prompt for input with default to current (1) if Enter is pressed
+echo -n "Enter log location (current||home): "
 read USERINPUT
 
+# Default to '1' (current) if nothing is entered
+USERINPUT=${USERINPUT:-1}
+
 # Normalize input (convert to lowercase for comparison)
-USERINPUT=$(echo "$USERINPUT" | tr '[:upper:]' '[:lower:]')
+USERINPUT=`echo "$USERINPUT" | tr '[:upper:]' '[:lower:]'`
 
-# Validate input
-if echo "$USERINPUT" | grep -Eq "^(home|current)$"; then
-    if [ "$USERINPUT" = "home" ]; then
-        LOG_DIR="$HOME"
-    else
-        LOG_DIR="$(pwd)"
-    fi
+# Validate input and set log directory
+case "$USERINPUT" in
+    1 | current) LOG_DIR="$(pwd)" ;;  # current directory
+    2 | home) LOG_DIR="$HOME" ;;      # home directory
+    *) echo "Invalid input. Please enter current or home. Exiting."; exit 1 ;;
+esac
 
-    TERMINAL_LOG="$LOG_DIR/terminal.log"
-    COMMANDS_LOG="$LOG_DIR/commands.log"
+LOG_FILE="$LOG_DIR/terminal.log"
 
-    # Start logging while suppressing script's startup message
-    script -q -f "$TERMINAL_LOG" 2>/dev/null | tee -a "$COMMANDS_LOG" &
-    set -o functrace
-    exec > >(tee -a "$TERMINAL_LOG") 2>&1
-    set -x
-else
-    echo "Invalid input. Please enter 'home' or 'current'. Exiting."
-    exit 1
+# Store original PS1 (for Zsh or Bash users)
+if [ -n "$ZSH_VERSION" ] || [ -n "$BASH_VERSION" ]; then
+    ORIGINAL_PS1="$PS1"
+    export PS1="[LOGGING] $PS1"
 fi
+
+# Change terminal title (using basic ANSI escape sequences)
+echo -ne "\033]0;[LOGGING] Terminal\007"
+
+# Handle exit (restore PS1 and terminal title)
+trap 'echo "Logging stopped."; \
+      if [ -n "$ORIGINAL_PS1" ]; then export PS1="$ORIGINAL_PS1"; fi; \
+      echo -ne "\033]0;Terminal\007"; \
+      exit 0' EXIT
+
+# Start logging
+script -q -f "$LOG_FILE"
