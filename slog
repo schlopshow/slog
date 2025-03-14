@@ -36,4 +36,4 @@ trap 'echo "Logging stopped."; \
       exit 0' EXIT
 
 # Start logging
-script -q -f "$LOG_FILE"
+script -q -a "$LOG_FILE"
